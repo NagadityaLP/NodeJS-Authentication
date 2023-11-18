@@ -4,7 +4,8 @@ import express from "express";
 import bodyParser from "body-parser";
 import ejs from "ejs";
 import mongoose from "mongoose";
-import md5 from "md5";
+import bcrypt from "bcrypt";
+const saltRounds = 10;
 
 dotenv.config();
 const app = express();
@@ -35,19 +36,21 @@ app.get("/register", (req, res) => {
 });
 
 app.post("/register", (req, res) => {
-  const newUser = new User({
-    email: req.body.username,
-    password: md5(req.body.password),
-  });
-
-  newUser
-    .save()
-    .then(() => {
-      res.render("secrets");
-    })
-    .catch((err) => {
-      console.log(err);
+  bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
+    const newUser = new User({
+      email: req.body.username,
+      password: hash,
     });
+
+    newUser
+      .save()
+      .then(() => {
+        res.render("secrets");
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  });
 });
 
 app.post("/login", (req, res) => {
@@ -58,11 +61,15 @@ app.post("/login", (req, res) => {
     .exec()
     .then((foundUser) => {
       if (foundUser) {
-        if (foundUser.password === md5(password)) {
-          res.render("secrets");
-        } else {
-          res.redirect("/");
-        }
+        bcrypt.compare(password, foundUser.password, function (err, result) {
+          if (result === true) {
+            res.render("secrets");
+          } else {
+            res.redirect("/");
+          }
+        });
+      } else {
+        res.redirect("/");
       }
     })
     .catch((err) => {
